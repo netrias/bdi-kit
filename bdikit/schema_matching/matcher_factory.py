@@ -1,10 +1,10 @@
 from enum import Enum
 from typing import Mapping, Any
-from bdikit.schema_matching.base import BaseOne2oneSchemaMatcher, BaseTopkSchemaMatcher
+from bdikit.schema_matching.base import BaseSchemaMatcher, BaseTopkSchemaMatcher
 from bdikit.utils import create_matcher
 
 
-class One2oneSchemaMatchers(Enum):
+class SchemaMatchers(Enum):
     SIMFLOOD = (
         "similarity_flooding",
         "bdikit.schema_matching.valentine.SimFlood",
@@ -25,7 +25,6 @@ class One2oneSchemaMatchers(Enum):
         "jaccard_distance",
         "bdikit.schema_matching.valentine.Jaccard",
     )
-    GPT = ("gpt", "bdikit.schema_matching.gpt.GPT")
 
     TWO_PHASE = (
         "two_phase",
@@ -68,25 +67,27 @@ class TopkSchemaMatchers(Enum):
         "bdikit.schema_matching.magneto.MagnetoFTLLM",
     )
 
+    GPT = ("gpt", "bdikit.schema_matching.gpt.GPT")
+
     def __init__(self, matcher_name: str, matcher_path: str):
         self.matcher_name = matcher_name
         self.matcher_path = matcher_path
 
 
-one2one_schema_matchers = {
-    method.matcher_name: method.matcher_path for method in One2oneSchemaMatchers
+schema_matchers = {
+    method.matcher_name: method.matcher_path for method in SchemaMatchers
 }
 topk_schema_matchers = {
     method.matcher_name: method.matcher_path for method in TopkSchemaMatchers
 }
-one2one_schema_matchers.update(topk_schema_matchers)
+schema_matchers.update(topk_schema_matchers)
 
 
-def get_one2one_schema_matcher(
+def get_schema_matcher(
     matcher_name: str, **matcher_kwargs: Mapping[str, Any]
-) -> BaseOne2oneSchemaMatcher:
+) -> BaseSchemaMatcher:
 
-    return create_matcher(matcher_name, one2one_schema_matchers, **matcher_kwargs)
+    return create_matcher(matcher_name, schema_matchers, **matcher_kwargs)
 
 
 def get_topk_schema_matcher(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+import warnings
 from collections import defaultdict
 import itertools
 import pandas as pd
@@ -7,19 +8,19 @@ import numpy as np
 import panel as pn
 from IPython.display import display, Markdown
 
-from bdikit.schema_matching.base import BaseOne2oneSchemaMatcher, BaseTopkSchemaMatcher
+from bdikit.schema_matching.base import BaseSchemaMatcher, BaseTopkSchemaMatcher
 from bdikit.schema_matching.matcher_factory import (
-    get_one2one_schema_matcher,
+    get_schema_matcher,
     get_topk_schema_matcher,
 )
 from bdikit.value_matching.base import (
-    BaseOne2oneValueMatcher,
+    BaseValueMatcher,
     BaseTopkValueMatcher,
     ValueMatch,
     ValueMatchingResult,
 )
 from bdikit.value_matching.matcher_factory import (
-    get_one2one_value_matcher,
+    get_value_matcher,
     get_topk_value_matcher,
 )
 from bdikit.standards.standard_factory import Standards
@@ -52,7 +53,7 @@ logger = logging.getLogger(__name__)
 def match_schema(
     source: pd.DataFrame,
     target: Union[str, pd.DataFrame] = "gdc",
-    method: Union[str, BaseOne2oneSchemaMatcher] = DEFAULT_SCHEMA_MATCHING_METHOD,
+    method: Union[str, BaseSchemaMatcher] = DEFAULT_SCHEMA_MATCHING_METHOD,
     method_args: Optional[Dict[str, Any]] = None,
     standard_args: Optional[Dict[str, Any]] = None,
 ) -> pd.DataFrame:
@@ -83,17 +84,17 @@ def match_schema(
     if isinstance(method, str):
         if method_args is None:
             method_args = {}
-        matcher_instance = get_one2one_schema_matcher(method, **method_args)
-    elif isinstance(method, BaseOne2oneSchemaMatcher):
+        matcher_instance = get_schema_matcher(method, **method_args)
+    elif isinstance(method, BaseSchemaMatcher):
         matcher_instance = method
     else:
         raise ValueError(
             "The method must be a string or an instance of BaseColumnMappingAlgorithm"
         )
 
-    matches = matcher_instance.get_one2one_match(source, target_table)
+    matches = matcher_instance.match_schema(source, target_table)
 
-    return pd.DataFrame(matches.items(), columns=["source", "target"])
+    return pd.DataFrame(matches, columns=["source", "target", "similarity"])
 
 
 def _load_table_for_standard(name: str, standard_args: Dict[str, Any]) -> pd.DataFrame:
@@ -109,6 +110,51 @@ def _load_table_for_standard(name: str, standard_args: Dict[str, Any]) -> pd.Dat
 
 
 def top_matches(
+    source: pd.DataFrame,
+    target: Union[str, pd.DataFrame] = "gdc",
+    columns: Optional[List[str]] = None,
+    top_k: int = 10,
+    method: Union[str, BaseTopkSchemaMatcher] = DEFAULT_SCHEMA_MATCHING_METHOD,
+    method_args: Optional[Dict[str, Any]] = None,
+    standard_args: Optional[Dict[str, Any]] = None,
+) -> pd.DataFrame:
+    """
+    .. deprecated:: 0.6.0
+        **This function is deprecated, use** `rank_schema_matches` **instead**.
+
+    Returns the top-k matches between the source and target tables.
+
+    Args:
+        source (pd.DataFrame): The source table.
+        target (Union[str, pd.DataFrame], optional): The target table or the name of the standard target table. Defaults to "gdc".
+        columns (Optional[List[str]], optional): The list of columns to consider for matching. Defaults to None.
+        top_k (int, optional): The number of top matches to return. Defaults to 10.
+        method (Union[str, BaseTopkSchemaMatcher], optional): The method used for matching. Defaults to DEFAULT_SCHEMA_MATCHING_METHOD.
+        method_args (Optional[Dict[str, Any]], optional): The additional arguments of the method for schema matching.
+        standard_args (Optional[Dict[str, Any]], optional): The additional arguments of the standard vocabulary.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the top-k matches between the source and target tables.
+    """
+    warnings.warn(
+        "`top_matches` is deprecated and will be removed in version 0.7.0 of bdi-kit. "
+        "Please use `rank_schema_matches` instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    return rank_schema_matches(
+        source=source,
+        target=target,
+        columns=columns,
+        top_k=top_k,
+        method=method,
+        method_args=method_args,
+        standard_args=standard_args,
+    )
+
+
+def rank_schema_matches(
     source: pd.DataFrame,
     target: Union[str, pd.DataFrame] = "gdc",
     columns: Optional[List[str]] = None,
@@ -154,25 +200,17 @@ def top_matches(
             "The method must be a string or an instance of BaseTopkColumnMatcher"
         )
 
-    top_k_matches = topk_matcher.get_topk_matches(
+    matches = topk_matcher.rank_schema_matches(
         selected_columns, target=target_table, top_k=top_k
     )
-
-    dfs = []
-    for match in top_k_matches:
-        matches = pd.DataFrame(match["top_k_columns"], columns=["target", "similarity"])
-        matches["source"] = match["source_column"]
-        matches = matches[["source", "target", "similarity"]]  # reorder columns
-        dfs.append(matches.sort_values(by="similarity", ascending=False))
-
-    return pd.concat(dfs, ignore_index=True)
+    return pd.DataFrame(matches, columns=["source", "target", "similarity"])
 
 
 def match_values(
     source: pd.DataFrame,
     target: Union[str, pd.DataFrame],
     column_mapping: Union[Tuple[str, str], pd.DataFrame],
-    method: Union[str, BaseOne2oneValueMatcher] = DEFAULT_VALUE_MATCHING_METHOD,
+    method: Union[str, BaseValueMatcher] = DEFAULT_VALUE_MATCHING_METHOD,
     method_args: Optional[Dict[str, Any]] = None,
     standard_args: Optional[Dict[str, Any]] = None,
 ) -> Union[pd.DataFrame, List[pd.DataFrame]]:
@@ -221,8 +259,8 @@ def match_values(
     if isinstance(method, str):
         if method_args is None:
             method_args = {}
-        matcher_instance = get_one2one_value_matcher(method, **method_args)
-    elif isinstance(method, BaseOne2oneValueMatcher):
+        matcher_instance = get_value_matcher(method, **method_args)
+    elif isinstance(method, BaseValueMatcher):
         matcher_instance = method
 
     matches = _match_values(
@@ -243,6 +281,76 @@ def match_values(
 
 
 def top_value_matches(
+    source: pd.DataFrame,
+    target: Union[str, pd.DataFrame],
+    column_mapping: Union[Tuple[str, str], pd.DataFrame],
+    top_k: int = 5,
+    method: Union[str, BaseTopkValueMatcher] = DEFAULT_VALUE_MATCHING_METHOD,
+    method_args: Optional[Dict[str, Any]] = None,
+    standard_args: Optional[Dict[str, Any]] = None,
+) -> List[pd.DataFrame]:
+    """
+    .. deprecated:: 0.6.0
+        **This function is deprecated, use** `rank_value_matches` **instead**.
+
+    Finds top value matches between column values from the source dataset and column
+    values of the target domain (a pd.DataFrame or a standard dictionary such
+    as 'gdc') using the method provided in `method`.
+
+    Args:
+        source (pd.DataFrame): The source dataset containing the columns to be
+          matched.
+
+        target (Union[str, pd.DataFrame]): The target domain to match the
+          values to. It can be either a DataFrame or a standard vocabulary name.
+
+        column_mapping (Union[Tuple[str, str], pd.DataFrame]): A tuple or a
+          DataFrame containing the mappings between source and target columns.
+
+          - If a tuple is provided, it should contain two strings where the first
+            is the source column and the second is the target column.
+          - If a DataFrame is provided, it should contain 'source' and 'target'
+            column names where each row specifies a column mapping.
+
+        top_k (int, optional): The number of top matches to return. Defaults to 5.
+
+        method (str, optional): The name of the method to use for value
+          matching.
+        method_args (Dict[str, Any], optional): The additional arguments of the
+            method for value matching.
+        standard_args (Dict[str, Any], optional): The additional arguments of the
+            standard vocabulary.
+
+    Returns:
+        List[pd.DataFrame]: A list of DataFrame objects containing
+        the results of value matching between the source and target values.
+
+    Raises:
+        ValueError: If the column_mapping DataFrame does not contain 'source' and
+          'target' columns.
+        ValueError: If the target is neither a DataFrame nor a standard vocabulary name.
+        ValueError: If the source column is not present in the source dataset.
+    """
+
+    warnings.warn(
+        "`top_value_matches` is deprecated and will be removed in version 0.7.0 of bdi-kit. "
+        "Please use `rank_value_matches` instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    return rank_value_matches(
+        source=source,
+        target=target,
+        column_mapping=column_mapping,
+        top_k=top_k,
+        method=method,
+        method_args=method_args,
+        standard_args=standard_args,
+    )
+
+
+def rank_value_matches(
     source: pd.DataFrame,
     target: Union[str, pd.DataFrame],
     column_mapping: Union[Tuple[str, str], pd.DataFrame],
@@ -363,7 +471,7 @@ def _match_values(
     source: pd.DataFrame,
     target: Union[str, pd.DataFrame],
     column_mapping: Union[Tuple[str, str], pd.DataFrame],
-    value_matcher: Union[BaseOne2oneValueMatcher, BaseTopkValueMatcher],
+    value_matcher: Union[BaseValueMatcher, BaseTopkValueMatcher],
     standard_args: Dict[str, Any],
     top_k: int = 1,
 ) -> List[pd.DataFrame]:
@@ -387,34 +495,44 @@ def _match_values(
             continue
 
         # 2. Remove blank spaces to the unique values
-        source_values_dict: Dict[str, Any] = {str(x).strip(): x for x in unique_values}
+        source_values_dict: Dict[str, List[str]] = {}
+        for value in unique_values:
+            stripped_value = str(value).strip()
+            if stripped_value not in source_values_dict:
+                source_values_dict[stripped_value] = []
+            source_values_dict[stripped_value].append(value)
+
         target_values_dict: Dict[str, str] = {
             str(x).strip(): x for x in target_domain_list
         }
 
         # 3. Apply the value matcher to create value mapping dictionaries
         if isinstance(value_matcher, BaseTopkValueMatcher):
-            raw_matches = value_matcher.get_topk_matches(
+            raw_matches = value_matcher.rank_value_matches(
                 list(source_values_dict.keys()), list(target_values_dict.keys()), top_k
             )
         else:
-            raw_matches = value_matcher.get_one2one_match(
+            raw_matches = value_matcher.match_values(
                 list(source_values_dict.keys()), list(target_values_dict.keys())
             )
 
         # 4. Transform the matches to the original
         matches: List[ValueMatch] = []
         for source_value, target_value, similarity in raw_matches:
-            matches.append(
-                ValueMatch(
-                    source_value=source_values_dict[source_value],
-                    target_value=target_values_dict[target_value],
-                    similarity=similarity,
+            original_source_values = source_values_dict[source_value]  # All originals
+            for original_source_value in original_source_values:
+                matches.append(
+                    ValueMatch(
+                        source_value=original_source_value,
+                        target_value=target_values_dict[target_value],
+                        similarity=similarity,
+                    )
                 )
-            )
 
         # 5. Calculate the coverage and unmatched values
-        source_values = set(source_values_dict.values())
+        source_values = set(
+            value for values in source_values_dict.values() for value in values
+        )
         match_values = set([x[0] for x in matches])
         coverage = len(match_values) / len(source_values_dict)
 

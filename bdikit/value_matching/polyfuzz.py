@@ -3,7 +3,11 @@ import torch
 from rapidfuzz import fuzz
 from polyfuzz import PolyFuzz as PolyFuzzLib
 from typing import List, Callable, Tuple
-from bdikit.value_matching.base import BaseTopkValueMatcher, ValueMatch
+from bdikit.value_matching.base import (
+    BaseTopkValueMatcher,
+    BaseValueMatcher,
+    ValueMatch,
+)
 from polyfuzz.models import (
     EditDistance as EditDistanceMatcher,
     TFIDF as TFIDFMatcher,
@@ -25,7 +29,7 @@ class PolyFuzz(BaseTopkValueMatcher):
         self.model = polyfuzz_model
         self.threshold = threshold
 
-    def get_topk_matches(
+    def rank_value_matches(
         self,
         source_values: List[str],
         target_values: List[str],
@@ -122,7 +126,7 @@ class FastText(PolyFuzz):
         super().__init__(PolyFuzzLib(method), threshold)
 
 
-class EditDistance:
+class EditDistance(BaseValueMatcher):
     """
     Value matching algorithm based on the edit distance between values.
     """
@@ -143,7 +147,7 @@ class EditDistance:
         )
         self.threshold = threshold
 
-    def get_one2one_match(
+    def match_values(
         self,
         source_values: List[str],
         target_values: List[str],
