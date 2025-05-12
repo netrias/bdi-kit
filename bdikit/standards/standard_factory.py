@@ -8,6 +8,7 @@ class Standards(Enum):
     GDC = ("gdc", "bdikit.standards.gdc.GDC")
     SYNAPSE = ("synapse", "bdikit.standards.synapse.Synapse")
     CDS = ("cds", "bdikit.standards.cds.CDS")
+    GC = ("gc", "bdikit.standards.gc.GC")
 
     def __init__(self, standard_name: str, standard_path: str):
         self.standard_name = standard_name
