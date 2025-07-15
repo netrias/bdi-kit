@@ -2,9 +2,9 @@ import json
 from os.path import join, dirname
 
 # Set where we load the raw CDS data model from
-RAW_CDS_PATH = join(dirname(__file__), "./ChIPSeqTemplate-deref.json")
+RAW_CDS_PATH = join(dirname(__file__), "sage_templates_v2/RNASeqTemplate-deref.json")
 # Set where we save the CDS data model in the format bdi-kit expects
-FORMATTED_CDS_PATH = join(dirname(__file__), "../../bdikit/resource/sage_ChIPSeqTemplate_schema.json")
+FORMATTED_CDS_PATH = join(dirname(__file__), "../../bdikit/resource/sage_RNASeqTemplate_schema.json")
 
 # Dict to capture our desired form of the data model
 metadata = {}
