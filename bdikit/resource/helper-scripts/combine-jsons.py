@@ -17,6 +17,7 @@ from pathlib import Path
 # EDIT THIS LIST with the files you want to include (any order)
 #    They can be absolute paths or paths relative to this script.
 files_to_merge = [
+    "../ccdi_schema.json",
     "../cds_schema.json",
     "../gc_schema.json",
     "../sage_ChIPSeqTemplate_schema.json",

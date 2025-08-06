@@ -19,5 +19,5 @@ def count_json_keys(json_file_path):
 
 # Example usage
 if __name__ == "__main__":
-    json_file_path = "sage_ClinicalAssayTemplate_schema.json"  # Replace with your file path
+    json_file_path = "../ccdi_schema.json"  # Replace with your file path
     count_json_keys(json_file_path)
