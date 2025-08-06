@@ -13,6 +13,7 @@ class Standards(Enum):
     SAGE_IMAGINGASSAY = ("sage_imagingassay", "bdikit.standards.sage_imaging_assay_template.ImagingAssayTemplate")
     SAGE_CLINICALASSAY = ("sage_clinicalassay", "bdikit.standards.sage_clinical_assay_template.ClinicalAssayTemplate")
     SAGE_CHIPSEQ = ("sage_chipseq", "bdikit.standards.sage_chip_seq_template.ChIPSeqTemplate")
+    CCDI = ("ccdi", "bdikit.standards.ccdi.CCDI")
 
     def __init__(self, standard_name: str, standard_path: str):
         self.standard_name = standard_name

@@ -1,0 +1,7 @@
+This file records the commit hash and iso timestamp of that commit.
+It is used to track the version of the CCDI data model that we are using.
+
+repo: git@github.com:CBIIT/ccdi-model.git
+branch: main
+commit: 851a5e945688191ac387ff826327993146987550
+timestamp: 2025-08-05T20:51:23+00:00
