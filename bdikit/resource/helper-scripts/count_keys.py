@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+"""
+Count the number of keys in one of our bdi kit formatted json files.
+"""
 import json
 
 def count_json_keys(json_file_path):
