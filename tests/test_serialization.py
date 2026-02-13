@@ -43,6 +43,7 @@ def test_build_developer_message_contains_matching_rules():
     msg = build_developer_message(["CDE: test (id=1), PV_count=0, PV_samples=[]"], top_k=3)
     assert "candidate_index -1" in msg
     assert "rank 0" in msg
+    assert "confidence 0.0" in msg
     assert "strict JSON" in msg
 
 

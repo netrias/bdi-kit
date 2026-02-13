@@ -28,6 +28,7 @@ class CDEMatch:
     cde_id: int | None
     cde_key: str
     rank: int
+    confidence: float
 
 
 @dataclass(frozen=True)
@@ -86,6 +87,7 @@ class PotentialMatchIndex(BaseModel):
         ge=-1, description="0-based index into candidate list; -1 => No_Matches_Found"
     )
     rank: int = Field(ge=0, le=10, description="0 if no good matches; otherwise 1..K")
+    confidence: float = Field(ge=0.0, le=1.0, description="0.0 (no match) to 1.0 (exact match)")
 
 
 class ClosestMatchesIndex(BaseModel):

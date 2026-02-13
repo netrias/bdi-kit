@@ -110,7 +110,7 @@ def _serialize_column_result(result: ColumnResult) -> dict:
     return {
         "column_name": result.column_name,
         "matches": [
-            {"cde_id": m.cde_id, "cde_key": m.cde_key, "rank": m.rank}
+            {"cde_id": m.cde_id, "cde_key": m.cde_key, "rank": m.rank, "confidence": m.confidence}
             for m in result.matches
         ],
     }
@@ -120,7 +120,12 @@ def _deserialize_column_result(data: dict) -> ColumnResult:
     return ColumnResult(
         column_name=data["column_name"],
         matches=[
-            CDEMatch(cde_id=m["cde_id"], cde_key=m["cde_key"], rank=m["rank"])
+            CDEMatch(
+                cde_id=m["cde_id"],
+                cde_key=m["cde_key"],
+                rank=m["rank"],
+                confidence=m.get("confidence", 0.0),
+            )
             for m in data["matches"]
         ],
     )

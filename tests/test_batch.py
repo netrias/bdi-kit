@@ -13,8 +13,8 @@ def mock_openai_client() -> AsyncMock:
     response = MagicMock()
     response.output_text = json.dumps({
         "closest_matches": [
-            {"candidate_index": 0, "rank": 1},
-            {"candidate_index": 2, "rank": 2},
+            {"candidate_index": 0, "rank": 1, "confidence": 0.95},
+            {"candidate_index": 2, "rank": 2, "confidence": 0.7},
         ]
     })
     response.usage = MagicMock(input_tokens=1000, output_tokens=50, total_tokens=1050)
@@ -67,7 +67,7 @@ async def test_batch_handles_partial_failure_gracefully(
     client = AsyncMock()
     success_resp = MagicMock()
     success_resp.output_text = json.dumps({
-        "closest_matches": [{"candidate_index": 0, "rank": 1}]
+        "closest_matches": [{"candidate_index": 0, "rank": 1, "confidence": 0.9}]
     })
     success_resp.usage = MagicMock(input_tokens=500, output_tokens=25, total_tokens=525)
 
@@ -109,7 +109,7 @@ async def test_batch_skips_openai_for_cached_columns(
 ):
     cached_result = ColumnResult(
         column_name="sex",
-        matches=[CDEMatch(cde_id=1, cde_key="gender", rank=1)],
+        matches=[CDEMatch(cde_id=1, cde_key="gender", rank=1, confidence=0.95)],
     )
 
     columns = [

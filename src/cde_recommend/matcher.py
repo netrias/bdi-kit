@@ -155,7 +155,7 @@ async def _match_chunked(
                 aggregated.append(c)
 
     if not aggregated:
-        no_match = CDEMatch(cde_id=None, cde_key="No_Matches_Found", rank=0)
+        no_match = CDEMatch(cde_id=None, cde_key="No_Matches_Found", rank=0, confidence=0.0)
         return ColumnResult(column_name=profile.column_name, matches=[no_match]), total_usage
 
     # Final ranking over aggregated shortlist
@@ -186,10 +186,14 @@ def _resolve_indices(
 
     for m in index_matches:
         if m.candidate_index == -1:
-            resolved.append(CDEMatch(cde_id=None, cde_key="No_Matches_Found", rank=m.rank))
+            resolved.append(CDEMatch(
+                cde_id=None, cde_key="No_Matches_Found", rank=m.rank, confidence=m.confidence,
+            ))
         elif 0 <= m.candidate_index < n:
             c = cdes[m.candidate_index]
-            resolved.append(CDEMatch(cde_id=c.cde_id, cde_key=c.cde_key, rank=m.rank))
+            resolved.append(
+                CDEMatch(cde_id=c.cde_id, cde_key=c.cde_key, rank=m.rank, confidence=m.confidence)
+            )
         else:
             logger.warning(
                 "Invalid index %d (max %d) for column %s",

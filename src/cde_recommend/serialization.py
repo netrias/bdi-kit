@@ -29,7 +29,11 @@ A good match is semantically aligned AND compatible with the value space (e.g., 
 Rules:
 - Return up to {top_k} closest matches.
 - Rank strictly from 1 (best) to {top_k}.
-- If nothing fits, return exactly one item with candidate_index -1 and rank 0.
+- For each match, rate confidence from 0.0 (no semantic relationship)
+  to 1.0 (exact match). Be conservative — most columns will NOT match
+  any CDE well. Use <0.5 for weak/speculative matches.
+- If nothing fits, return exactly one item with candidate_index -1,
+  rank 0, and confidence 0.0.
 - IMPORTANT: Return indices only (candidate_index). Do NOT output strings.
 - Output must be strict JSON matching the provided schema. No commentary.
 

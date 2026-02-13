@@ -27,8 +27,8 @@ def mock_client() -> AsyncMock:
     response = MagicMock()
     response.output_text = json.dumps({
         "closest_matches": [
-            {"candidate_index": 0, "rank": 1},
-            {"candidate_index": 2, "rank": 2},
+            {"candidate_index": 0, "rank": 1, "confidence": 0.95},
+            {"candidate_index": 2, "rank": 2, "confidence": 0.7},
         ]
     })
     response.usage = MagicMock(input_tokens=1000, output_tokens=50, total_tokens=1050)
@@ -41,18 +41,18 @@ def mock_client() -> AsyncMock:
 
 def test_resolve_indices_maps_correctly(sample_cdes: list[CDE]):
     indices = [
-        PotentialMatchIndex(candidate_index=0, rank=1),
-        PotentialMatchIndex(candidate_index=2, rank=2),
+        PotentialMatchIndex(candidate_index=0, rank=1, confidence=0.95),
+        PotentialMatchIndex(candidate_index=2, rank=2, confidence=0.7),
     ]
     result = _resolve_indices(indices, sample_cdes, "test_col", limit=5)
 
     assert len(result) == 2
-    assert result[0] == CDEMatch(cde_id=1, cde_key="gender", rank=1)
-    assert result[1] == CDEMatch(cde_id=3, cde_key="ethnicity", rank=2)
+    assert result[0] == CDEMatch(cde_id=1, cde_key="gender", rank=1, confidence=0.95)
+    assert result[1] == CDEMatch(cde_id=3, cde_key="ethnicity", rank=2, confidence=0.7)
 
 
 def test_resolve_indices_handles_no_match_sentinel(sample_cdes: list[CDE]):
-    indices = [PotentialMatchIndex(candidate_index=-1, rank=0)]
+    indices = [PotentialMatchIndex(candidate_index=-1, rank=0, confidence=0.0)]
     result = _resolve_indices(indices, sample_cdes, "test_col", limit=5)
 
     assert len(result) == 1
@@ -62,9 +62,9 @@ def test_resolve_indices_handles_no_match_sentinel(sample_cdes: list[CDE]):
 
 def test_invalid_indices_are_filtered_out(sample_cdes: list[CDE]):
     indices = [
-        PotentialMatchIndex(candidate_index=0, rank=1),
-        PotentialMatchIndex(candidate_index=99, rank=2),  # out of range
-        PotentialMatchIndex(candidate_index=2, rank=3),
+        PotentialMatchIndex(candidate_index=0, rank=1, confidence=0.9),
+        PotentialMatchIndex(candidate_index=99, rank=2, confidence=0.5),  # out of range
+        PotentialMatchIndex(candidate_index=2, rank=3, confidence=0.7),
     ]
     result = _resolve_indices(indices, sample_cdes, "test_col", limit=5)
 
@@ -75,9 +75,9 @@ def test_invalid_indices_are_filtered_out(sample_cdes: list[CDE]):
 
 def test_resolve_indices_respects_limit(sample_cdes: list[CDE]):
     indices = [
-        PotentialMatchIndex(candidate_index=0, rank=1),
-        PotentialMatchIndex(candidate_index=1, rank=2),
-        PotentialMatchIndex(candidate_index=2, rank=3),
+        PotentialMatchIndex(candidate_index=0, rank=1, confidence=0.9),
+        PotentialMatchIndex(candidate_index=1, rank=2, confidence=0.7),
+        PotentialMatchIndex(candidate_index=2, rank=3, confidence=0.5),
     ]
     result = _resolve_indices(indices, sample_cdes, "test_col", limit=2)
     assert len(result) == 2
@@ -120,7 +120,7 @@ async def test_match_column_handles_no_matches(
     client = AsyncMock()
     response = MagicMock()
     response.output_text = json.dumps({
-        "closest_matches": [{"candidate_index": -1, "rank": 0}]
+        "closest_matches": [{"candidate_index": -1, "rank": 0, "confidence": 0.0}]
     })
     response.usage = MagicMock(input_tokens=500, output_tokens=20, total_tokens=520)
     client.responses.create = AsyncMock(return_value=response)

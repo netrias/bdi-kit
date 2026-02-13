@@ -19,7 +19,7 @@ def sample_column_result() -> ColumnResult:
     return ColumnResult(
         column_name="sex",
         matches=[
-            CDEMatch(cde_id=1, cde_key="gender", rank=1),
-            CDEMatch(cde_id=3, cde_key="ethnicity", rank=2),
+            CDEMatch(cde_id=1, cde_key="gender", rank=1, confidence=0.95),
+            CDEMatch(cde_id=3, cde_key="ethnicity", rank=2, confidence=0.6),
         ],
     )

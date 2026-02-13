@@ -8,7 +8,7 @@ from typing import Any
 from cde_recommend.batch import match_columns_batch
 from cde_recommend.db import load_cdes
 from cde_recommend.openai_client import get_client
-from cde_recommend.types import ColumnInput, ColumnResult, MatchRequest, UsageStats
+from cde_recommend.types import ColumnInput, ColumnResult, MatchRequest
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +20,10 @@ def handler(event: dict, context: Any) -> dict[str, Any]:
         return _error_response(400, str(e))
 
     try:
-        all_cdes, resolved_label, resolved_number = load_cdes(
+        all_cdes, _, resolved_number = load_cdes(
             request.data_commons_key, request.version_label, request.version_number
         )
-    except KeyError as e:
+    except (KeyError, ValueError) as e:
         return _error_response(404, str(e))
 
     if not all_cdes:
@@ -31,7 +31,7 @@ def handler(event: dict, context: Any) -> dict[str, Any]:
 
     client = get_client()
 
-    results, usage = asyncio.run(
+    results, _ = asyncio.run(
         match_columns_batch(
             columns=request.columns,
             all_cdes=all_cdes,
@@ -48,14 +48,14 @@ def handler(event: dict, context: Any) -> dict[str, Any]:
         )
     )
 
-    mode = "single_call" if len(all_cdes) <= request.chunk_threshold else "chunked"
-    return _build_response(request, resolved_label, resolved_number, all_cdes, results, usage, mode)
+    return _build_response(results)
 
 
 # --- Private helpers ---
 
 
 def _parse_request(event: dict) -> MatchRequest:
+    """Accept netrias_client contract: target_schema, target_version, data dict."""
     raw = event.get("body", "")
     body: dict
     if isinstance(raw, str) and raw:
@@ -68,72 +68,56 @@ def _parse_request(event: dict) -> MatchRequest:
     if not isinstance(body, dict):
         raise ValueError("Request body must be a JSON object.")
 
-    dm_key = body.get("data_commons_key")
+    dm_key = body.get("target_schema")
     if not dm_key or not isinstance(dm_key, str):
-        raise ValueError("Missing required field 'data_commons_key' (string).")
+        raise ValueError("Missing required field 'target_schema' (string).")
 
-    raw_columns = body.get("columns")
-    if not raw_columns or not isinstance(raw_columns, list):
-        raise ValueError("Missing required field 'columns' (non-empty list).")
+    raw_data = body.get("data")
+    if not raw_data or not isinstance(raw_data, dict):
+        raise ValueError("Missing required field 'data' (non-empty dict).")
 
-    columns: list[ColumnInput] = []
-    for i, col in enumerate(raw_columns):
-        if not isinstance(col, dict):
-            raise ValueError(f"columns[{i}] must be an object.")
-        name = col.get("column_name")
-        values = col.get("column_values")
-        if not name or not isinstance(name, str):
-            raise ValueError(f"columns[{i}].column_name is required (string).")
-        if not isinstance(values, list):
-            raise ValueError(f"columns[{i}].column_values is required (list).")
-        columns.append(ColumnInput(column_name=name, column_values=values))
+    columns = [
+        ColumnInput(column_name=k, column_values=v)
+        for k, v in raw_data.items()
+    ]
 
+    version_label, version_number = _parse_version(body.get("target_version"))
     return MatchRequest(
         data_commons_key=dm_key,
         columns=columns,
-        version_label=body.get("version_label"),
-        version_number=body.get("version_number"),
-        model=body.get("model", "gpt-5-mini"),
+        version_label=version_label,
+        version_number=version_number,
         top_k=int(body.get("top_k", 5)),
-        concurrency=int(body.get("concurrency", 50)),
-        max_pv_samples=int(body.get("max_pv_samples", 12)),
-        chunk_threshold=int(body.get("chunk_threshold", 500)),
-        cde_chunk_size=int(body.get("cde_chunk_size", 50)),
-        per_chunk_k=int(body.get("per_chunk_k", 3)),
     )
 
 
-def _build_response(
-    request: MatchRequest,
-    version_label: str,
-    version_number: int | None,
-    all_cdes: list,
-    results: list[ColumnResult],
-    usage: UsageStats,
-    mode: str,
-) -> dict[str, Any]:
+def _parse_version(raw: object) -> tuple[str | None, int | None]:
+    """'latest' and None both mean 'use default'; digit strings are version_number."""
+    if raw is None or raw == "latest":
+        return None, None
+    if isinstance(raw, int):
+        return None, raw
+    if isinstance(raw, str):
+        if raw.isdigit():
+            return None, int(raw)
+        return raw, None
+    return None, None
+
+
+def _build_response(results: list[ColumnResult]) -> dict[str, Any]:
+    """Return netrias_client contract: results dict with target/similarity/target_cde_id."""
     return _success_response({
-        "data_commons_key": request.data_commons_key,
-        "version_label": version_label,
-        "version_number": version_number,
-        "candidate_cde_count": len(all_cdes),
-        "params": {
-            "model": request.model,
-            "top_k": request.top_k,
-            "concurrency": request.concurrency,
-            "mode": mode,
-        },
-        "results": [
-            {
-                "column_name": r.column_name,
-                "matches": [
-                    {"cde_id": m.cde_id, "cde_key": m.cde_key, "rank": m.rank}
-                    for m in r.matches
-                ],
-            }
+        "results": {
+            r.column_name: [
+                {
+                    "target": m.cde_key,
+                    "similarity": m.confidence,
+                    "target_cde_id": m.cde_id,
+                }
+                for m in r.matches
+            ]
             for r in results
-        ],
-        "usage": usage.to_dict(),
+        },
     })
 
 
