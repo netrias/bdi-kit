@@ -23,6 +23,7 @@ build/
 # Testing / Coverage
 .coverage
 .pytest_cache/
+.hypothesis/
 htmlcov/
 
 # Linting / Type checking
