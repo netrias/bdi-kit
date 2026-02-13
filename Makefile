@@ -1,14 +1,12 @@
-SRC := ./bdikit/ ./tests/ ./scripts/
-
-all: lint test
-
-PHONY: format test lint
+.PHONY: lint typecheck test all
 
 lint:
-	black --check ${SRC}
+	uv run ruff check src tests
+
+typecheck:
+	uv run basedpyright src tests
 
 test:
-	pytest ./tests/
+	uv run pytest tests -v
 
-format:
-	black ${SRC}
+all: lint typecheck test

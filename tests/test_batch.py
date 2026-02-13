@@ -1,0 +1,171 @@
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from cde_recommend.batch import match_columns_batch
+from cde_recommend.types import CDE, CDEMatch, ColumnInput, ColumnResult
+
+
+@pytest.fixture
+def mock_openai_client() -> AsyncMock:
+    client = AsyncMock()
+    response = MagicMock()
+    response.output_text = json.dumps({
+        "closest_matches": [
+            {"candidate_index": 0, "rank": 1},
+            {"candidate_index": 2, "rank": 2},
+        ]
+    })
+    response.usage = MagicMock(input_tokens=1000, output_tokens=50, total_tokens=1050)
+    client.responses.create = AsyncMock(return_value=response)
+    return client
+
+
+@pytest.fixture
+def columns() -> list[ColumnInput]:
+    return [
+        ColumnInput(column_name="sex", column_values=["Male", "Female", "Unknown"]),
+        ColumnInput(column_name="age", column_values=["25", "30", "45"]),
+    ]
+
+
+@pytest.mark.asyncio
+@patch("cde_recommend.batch.get_cached_results", return_value={})
+@patch("cde_recommend.batch.store_results")
+async def test_batch_processes_multiple_columns(
+    mock_store: MagicMock,
+    mock_cache_get: MagicMock,
+    columns: list[ColumnInput],
+    sample_cdes: list[CDE],
+    mock_openai_client: AsyncMock,
+):
+    results, usage = await match_columns_batch(
+        columns=columns,
+        all_cdes=sample_cdes,
+        client=mock_openai_client,
+        dm_key="ccdi",
+        version_number=1,
+    )
+
+    assert len(results) == 2
+    assert results[0].column_name == "sex"
+    assert results[1].column_name == "age"
+    assert usage.total_tokens > 0
+    mock_store.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("cde_recommend.batch.get_cached_results", return_value={})
+@patch("cde_recommend.batch.store_results")
+async def test_batch_handles_partial_failure_gracefully(
+    mock_store: MagicMock,
+    mock_cache_get: MagicMock,
+    sample_cdes: list[CDE],
+):
+    # First call succeeds, second raises
+    client = AsyncMock()
+    success_resp = MagicMock()
+    success_resp.output_text = json.dumps({
+        "closest_matches": [{"candidate_index": 0, "rank": 1}]
+    })
+    success_resp.usage = MagicMock(input_tokens=500, output_tokens=25, total_tokens=525)
+
+    call_count = 0
+
+    async def side_effect(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 2:
+            raise RuntimeError("OpenAI API error")
+        return success_resp
+
+    client.responses.create = AsyncMock(side_effect=side_effect)
+
+    columns = [
+        ColumnInput(column_name="sex", column_values=["Male", "Female"]),
+        ColumnInput(column_name="bad_col", column_values=["x", "y"]),
+    ]
+
+    results, usage = await match_columns_batch(
+        columns=columns,
+        all_cdes=sample_cdes,
+        client=client,
+        dm_key="ccdi",
+        version_number=1,
+    )
+
+    # At least the successful column should be present
+    col_names = [r.column_name for r in results]
+    assert "sex" in col_names
+
+
+@pytest.mark.asyncio
+@patch("cde_recommend.batch.store_results")
+async def test_batch_skips_openai_for_cached_columns(
+    mock_store: MagicMock,
+    sample_cdes: list[CDE],
+    mock_openai_client: AsyncMock,
+):
+    cached_result = ColumnResult(
+        column_name="sex",
+        matches=[CDEMatch(cde_id=1, cde_key="gender", rank=1)],
+    )
+
+    columns = [
+        ColumnInput(column_name="sex", column_values=["Male", "Female"]),
+        ColumnInput(column_name="age", column_values=["25", "30"]),
+    ]
+
+    # Patch get_cached_results to return the cached result for "sex"
+    from cde_recommend.cache import compute_cache_key
+
+    sex_key = compute_cache_key("ccdi", 1, "sex", ["Male", "Female"])
+
+    with patch(
+        "cde_recommend.batch.get_cached_results",
+        return_value={sex_key: cached_result},
+    ):
+        results, usage = await match_columns_batch(
+            columns=columns,
+            all_cdes=sample_cdes,
+            client=mock_openai_client,
+            dm_key="ccdi",
+            version_number=1,
+        )
+
+    assert len(results) == 2
+    # sex should use cached result
+    sex_result = next(r for r in results if r.column_name == "sex")
+    assert sex_result.matches[0].cde_key == "gender"
+
+    # Only 1 OpenAI call (for "age", not "sex")
+    assert mock_openai_client.responses.create.call_count == 1
+
+
+@pytest.mark.asyncio
+@patch("cde_recommend.batch.get_cached_results", return_value={})
+@patch("cde_recommend.batch.store_results")
+async def test_batch_stores_new_results_in_cache(
+    mock_store: MagicMock,
+    mock_cache_get: MagicMock,
+    sample_cdes: list[CDE],
+    mock_openai_client: AsyncMock,
+):
+    columns = [
+        ColumnInput(column_name="sex", column_values=["Male", "Female"]),
+    ]
+
+    results, _ = await match_columns_batch(
+        columns=columns,
+        all_cdes=sample_cdes,
+        client=mock_openai_client,
+        dm_key="ccdi",
+        version_number=1,
+    )
+
+    mock_store.assert_called_once()
+    stored_entries = mock_store.call_args[0][0]
+    assert len(stored_entries) == 1
+    cache_key, col_result = stored_entries[0]
+    assert col_result.column_name == "sex"

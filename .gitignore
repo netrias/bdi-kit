@@ -1,76 +1,39 @@
-# Ignore virtual environments
-venv/
+# Virtual environments
 .venv/
+venv/
 
-# Ignore macOS system files
-.DS_Store
-
-# Ignore Python bytecode files
+# Python
+__pycache__/
 *.pyc
 *.py[co]
-__pycache__/
-
-# Ignore Jupyter Notebook checkpoints
-.ipynb_checkpoints/
-**/*.ipynb_checkpoints
-
-# Ignore vscode settings
-.vscode/
-**/.vscode
-
-# Packages
 *.egg
-*.egg-info
-dist
-build
-eggs
-parts
-bin
-var
-sdist
-develop-eggs
-.installed.cfg
-lib
-lib64
+*.egg-info/
+dist/
+build/
 
-# Notebook checkpoints
-.ipynb_checkpoints
-
-# Installer logs
-pip-log.txt
-
-# Unit test / coverage reports
-.coverage
-.tox
-nosetests.xml
-
-# Eclipse PyDev
-.project
-.pydevproject
-
-# PyCharm
-.idea
-
-# ViM
-.*.swp
-
-# Emacs
+# IDE
+.vscode/
+.idea/
+*.swp
 \#*#
 
-# Archives
-*.tar
-*.tar.gz
-*.tar.bz2
-*.zip
-*.whl
-
-# Vagrant
-.vagrant
-
-# DS_Store
+# macOS
 .DS_Store
-**/.DS_Store
 
-# Model
-*.pt
-**/*.pt
+# Testing / Coverage
+.coverage
+.pytest_cache/
+htmlcov/
+
+# Linting / Type checking
+.ruff_cache/
+.mypy_cache/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# Secrets
+.env
