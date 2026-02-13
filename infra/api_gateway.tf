@@ -1,5 +1,5 @@
 resource "aws_apigatewayv2_api" "cde_recommend" {
-  name          = "cde-recommend-${var.environment}"
+  name          = "${var.project_name}-${var.environment}"
   protocol_type = "HTTP"
 }
 

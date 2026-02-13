@@ -33,12 +33,12 @@ asyncio_mode = "auto"
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-src = ["src", "tests"]
+src = ["src", "tests", "deploy"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "TCH"]
+select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.basedpyright]
 pythonVersion = "3.12"
-include = ["src", "tests"]
+include = ["src", "tests", "deploy"]
 typeCheckingMode = "standard"

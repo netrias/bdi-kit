@@ -1,5 +1,5 @@
 resource "aws_dynamodb_table" "cache" {
-  name         = "cde_recommendation_cache_${var.environment}"
+  name         = "${var.project_name}-cache-${var.environment}"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "cache_key"
 
@@ -14,7 +14,7 @@ resource "aws_dynamodb_table" "cache" {
   }
 
   tags = {
-    Name        = "cde-recommendation-cache"
+    Name        = "${var.project_name}-cache"
     Environment = var.environment
   }
 }

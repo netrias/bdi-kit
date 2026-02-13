@@ -8,9 +8,13 @@ variable "environment" {
   default = "dev"
 }
 
+variable "project_name" {
+  type    = string
+  default = "cde-recommend"
+}
+
 variable "db_host" {
-  type      = string
-  sensitive = true
+  type = string
 }
 
 variable "db_name" {
@@ -38,11 +42,11 @@ variable "openai_api_key" {
   sensitive = true
 }
 
-variable "vpc_id" {
-  type = string
+variable "private_subnet_ids" {
+  type = list(string)
 }
 
-variable "private_subnet_ids" {
+variable "security_group_ids" {
   type = list(string)
 }
 

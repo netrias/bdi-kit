@@ -9,9 +9,9 @@ terraform {
   }
 
   backend "s3" {
-    bucket = "conductor-terraform-state"
-    key    = "cde-recommend/terraform.tfstate"
-    region = "us-east-2"
+    key     = "cde-recommend/terraform.tfstate"
+    encrypt = true
+    # bucket, dynamodb_table, region supplied via -backend-config flags
   }
 }
 
