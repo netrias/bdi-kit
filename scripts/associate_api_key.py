@@ -21,14 +21,13 @@ REGION = "us-east-2"
 #   ont5g8 — apiserver (Terraform Cloud)
 #   zdtqrs — apivm (Terraform Cloud)
 #
-# After workstreams 2-3 deploy, add:
-#   <TBD>  — bdi-kit/sarajevo (cde-recommend direct Lambda, `tofu output usage_plan_id`)
-#   <TBD>  — harmonization_pipeline/manila (harmonization REST API, `tofu output usage_plan_id`)
 STANDARD_USAGE_PLANS: list[tuple[str, str]] = [
     ("772ahq", "datastore + harmonization-db"),
     ("h8daoc", "cde-recommendation-staging (async)"),
     ("ont5g8", "apiserver"),
     ("zdtqrs", "apivm"),
+    ("8fr3fm", "cde-recommend direct Lambda (sarajevo)"),
+    ("4pcdp7", "harmonization REST API (manila)"),
 ]
 
 
