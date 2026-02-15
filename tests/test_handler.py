@@ -63,7 +63,6 @@ def test_handler_200_returns_client_contract(
 ):
     sample_cdes = [
         CDE(cde_id=1, cde_key="gender", pv_values=("Male", "Female")),
-        CDE(cde_id=2, cde_key="age", pv_values=()),
     ]
     mock_load.return_value = (sample_cdes, "auto-v1", 1)
     mock_get_client.return_value = MagicMock()

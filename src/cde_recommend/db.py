@@ -121,7 +121,7 @@ def _fetch_cdes_for_version(
         FROM cde_version_in_model cvim
         JOIN cde_version cv ON cv.id = cvim.cde_version_id
         JOIN cde c ON c.id = cv.cde_id
-        LEFT JOIN permissible_value pv
+        JOIN permissible_value pv
           ON pv.cde_version_id = cv.id AND pv.is_active
         WHERE cvim.data_model_version_id = %s
         ORDER BY c.key, pv.sort_order NULLS LAST, pv.value

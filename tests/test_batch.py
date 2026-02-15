@@ -26,7 +26,7 @@ def mock_openai_client() -> AsyncMock:
 def columns() -> list[ColumnInput]:
     return [
         ColumnInput(column_name="sex", column_values=["Male", "Female", "Unknown"]),
-        ColumnInput(column_name="age", column_values=["25", "30", "45"]),
+        ColumnInput(column_name="race", column_values=["White", "Black", "Asian"]),
     ]
 
 
@@ -50,7 +50,7 @@ async def test_batch_processes_multiple_columns(
 
     assert len(results) == 2
     assert results[0].column_name == "sex"
-    assert results[1].column_name == "age"
+    assert results[1].column_name == "race"
     assert usage.total_tokens > 0
     mock_store.assert_called_once()
 
@@ -114,7 +114,7 @@ async def test_batch_skips_openai_for_cached_columns(
 
     columns = [
         ColumnInput(column_name="sex", column_values=["Male", "Female"]),
-        ColumnInput(column_name="age", column_values=["25", "30"]),
+        ColumnInput(column_name="race", column_values=["White", "Black", "Asian"]),
     ]
 
     # Patch get_cached_results to return the cached result for "sex"
@@ -139,7 +139,7 @@ async def test_batch_skips_openai_for_cached_columns(
     sex_result = next(r for r in results if r.column_name == "sex")
     assert sex_result.matches[0].cde_key == "gender"
 
-    # Only 1 OpenAI call (for "age", not "sex")
+    # Only 1 OpenAI call (for "race", not "sex")
     assert mock_openai_client.responses.create.call_count == 1
 
 
@@ -169,3 +169,49 @@ async def test_batch_stores_new_results_in_cache(
     assert len(stored_entries) == 1
     cache_key, col_result = stored_entries[0]
     assert col_result.column_name == "sex"
+
+
+@pytest.mark.asyncio
+@patch("cde_recommend.batch.get_cached_results", return_value={})
+@patch("cde_recommend.batch.store_results")
+async def test_batch_skips_numeric_columns(
+    mock_store: MagicMock,
+    mock_cache_get: MagicMock,
+    sample_cdes: list[CDE],
+    mock_openai_client: AsyncMock,
+):
+    """
+    Given: One categorical column and one numeric column
+      AND: No cached results exist
+    When: match_columns_batch processes both
+    Then: Numeric column gets No_Matches_Found without an LLM call
+      AND: Categorical column is still sent to the LLM
+    """
+    columns = [
+        ColumnInput(column_name="sex", column_values=["Male", "Female", "Unknown"]),
+        ColumnInput(column_name="age_at_diagnosis", column_values=["25.0", "30.5", "45.2"]),
+    ]
+
+    results, usage = await match_columns_batch(
+        columns=columns,
+        all_cdes=sample_cdes,
+        client=mock_openai_client,
+        dm_key="ccdi",
+        version_number=1,
+    )
+
+    # Both columns should have results
+    assert len(results) == 2
+    result_map = {r.column_name: r for r in results}
+
+    # Numeric column: No_Matches_Found, no LLM call
+    age_result = result_map["age_at_diagnosis"]
+    assert age_result.matches[0].cde_key == "No_Matches_Found"
+    assert age_result.matches[0].confidence == 0.0
+
+    # Categorical column: real LLM match
+    sex_result = result_map["sex"]
+    assert sex_result.matches[0].cde_key != "No_Matches_Found"
+
+    # Only 1 OpenAI call (for "sex", not "age_at_diagnosis")
+    assert mock_openai_client.responses.create.call_count == 1

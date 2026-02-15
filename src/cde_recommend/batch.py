@@ -9,7 +9,7 @@ from cde_recommend.cache import compute_cache_key, get_cached_results, store_res
 from cde_recommend.matcher import match_column
 from cde_recommend.profiler import profile_column
 from cde_recommend.serialization import build_developer_message, serialize_cde_candidates
-from cde_recommend.types import CDE, ColumnInput, ColumnResult, UsageStats
+from cde_recommend.types import CDE, CDEMatch, ColumnInput, ColumnResult, UsageStats
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +58,8 @@ async def match_columns_batch(
 
     async def _process_column(col: ColumnInput) -> tuple[str, ColumnResult, UsageStats]:
         col_profile = profile_column(col.column_name, col.column_values)
+        if col_profile.dtype == "numeric":
+            return col.column_name, _no_match_result(col.column_name), UsageStats()
         result, usage = await match_column(
             profile=col_profile,
             all_cdes=all_cdes,
@@ -102,3 +104,10 @@ async def match_columns_batch(
             final.append(results_by_name[col.column_name])
 
     return final, total_usage
+
+
+def _no_match_result(column_name: str) -> ColumnResult:
+    return ColumnResult(
+        column_name=column_name,
+        matches=[CDEMatch(cde_id=None, cde_key="No_Matches_Found", rank=0, confidence=0.0)],
+    )
