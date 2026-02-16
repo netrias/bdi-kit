@@ -12,6 +12,8 @@ from cde_recommend.types import ColumnInput, ColumnResult, MatchRequest
 
 logger = logging.getLogger(__name__)
 
+_MAX_PV_COUNT = 100  # TODO(temporary): remove once we handle high-cardinality CDEs
+
 
 def handler(event: dict, context: Any) -> dict[str, Any]:
     try:
@@ -20,14 +22,22 @@ def handler(event: dict, context: Any) -> dict[str, Any]:
         return _error_response(400, str(e))
 
     try:
-        all_cdes, _, resolved_number = load_cdes(
+        all_cdes_raw, _, resolved_number = load_cdes(
             request.data_commons_key, request.version_label, request.version_number
         )
     except (KeyError, ValueError) as e:
         return _error_response(404, str(e))
 
-    if not all_cdes:
+    if not all_cdes_raw:
         return _error_response(404, "No CDEs found for that data model / version.")
+
+    all_cdes = [c for c in all_cdes_raw if len(c.pv_values) <= _MAX_PV_COUNT]
+    if len(all_cdes) < len(all_cdes_raw):
+        excluded = [c.cde_key for c in all_cdes_raw if len(c.pv_values) > _MAX_PV_COUNT]
+        logger.info(
+            "Excluded %d high-cardinality CDEs (>%d PVs): %s",
+            len(excluded), _MAX_PV_COUNT, excluded,
+        )
 
     client = get_client()
 

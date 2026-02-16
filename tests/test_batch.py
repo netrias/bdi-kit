@@ -25,8 +25,8 @@ def mock_openai_client() -> AsyncMock:
 @pytest.fixture
 def columns() -> list[ColumnInput]:
     return [
-        ColumnInput(column_name="sex", column_values=["Male", "Female", "Unknown"]),
-        ColumnInput(column_name="race", column_values=["White", "Black", "Asian"]),
+        ColumnInput(column_name="sex", column_values=["Male", "Female", "Unknown"] * 10),
+        ColumnInput(column_name="race", column_values=["White", "Black", "Asian"] * 10),
     ]
 
 
@@ -83,7 +83,7 @@ async def test_batch_handles_partial_failure_gracefully(
     client.responses.create = AsyncMock(side_effect=side_effect)
 
     columns = [
-        ColumnInput(column_name="sex", column_values=["Male", "Female"]),
+        ColumnInput(column_name="sex", column_values=["Male", "Female"] * 10),
         ColumnInput(column_name="bad_col", column_values=["x", "y"]),
     ]
 
@@ -113,14 +113,14 @@ async def test_batch_skips_openai_for_cached_columns(
     )
 
     columns = [
-        ColumnInput(column_name="sex", column_values=["Male", "Female"]),
-        ColumnInput(column_name="race", column_values=["White", "Black", "Asian"]),
+        ColumnInput(column_name="sex", column_values=["Male", "Female"] * 10),
+        ColumnInput(column_name="race", column_values=["White", "Black", "Asian"] * 10),
     ]
 
     # Patch get_cached_results to return the cached result for "sex"
     from cde_recommend.cache import compute_cache_key
 
-    sex_key = compute_cache_key("ccdi", 1, "sex", ["Male", "Female"])
+    sex_key = compute_cache_key("ccdi", 1, "sex", ["Male", "Female"] * 10)
 
     with patch(
         "cde_recommend.batch.get_cached_results",
@@ -153,7 +153,7 @@ async def test_batch_stores_new_results_in_cache(
     mock_openai_client: AsyncMock,
 ):
     columns = [
-        ColumnInput(column_name="sex", column_values=["Male", "Female"]),
+        ColumnInput(column_name="sex", column_values=["Male", "Female"] * 10),
     ]
 
     results, _ = await match_columns_batch(
@@ -188,7 +188,7 @@ async def test_batch_skips_numeric_columns(
       AND: Categorical column is still sent to the LLM
     """
     columns = [
-        ColumnInput(column_name="sex", column_values=["Male", "Female", "Unknown"]),
+        ColumnInput(column_name="sex", column_values=["Male", "Female", "Unknown"] * 10),
         ColumnInput(column_name="age_at_diagnosis", column_values=["25.0", "30.5", "45.2"]),
     ]
 
@@ -214,4 +214,53 @@ async def test_batch_skips_numeric_columns(
     assert sex_result.matches[0].cde_key != "No_Matches_Found"
 
     # Only 1 OpenAI call (for "sex", not "age_at_diagnosis")
+    assert mock_openai_client.responses.create.call_count == 1
+
+
+@pytest.mark.asyncio
+@patch("cde_recommend.batch.get_cached_results", return_value={})
+@patch("cde_recommend.batch.store_results")
+async def test_batch_skips_id_like_columns(
+    mock_store: MagicMock,
+    mock_cache_get: MagicMock,
+    sample_cdes: list[CDE],
+    mock_openai_client: AsyncMock,
+):
+    """
+    Given: One categorical column and one id_like column
+      AND: No cached results exist
+    When: match_columns_batch processes both
+    Then: id_like column gets No_Matches_Found without an LLM call
+      AND: Categorical column is still sent to the LLM
+    """
+    columns = [
+        ColumnInput(column_name="sex", column_values=["Male", "Female", "Unknown"] * 10),
+        ColumnInput(
+            column_name="sample_id",
+            column_values=[f"SAM-{i:04d}" for i in range(100)],
+        ),
+    ]
+
+    results, usage = await match_columns_batch(
+        columns=columns,
+        all_cdes=sample_cdes,
+        client=mock_openai_client,
+        dm_key="ccdi",
+        version_number=1,
+    )
+
+    # Both columns should have results
+    assert len(results) == 2
+    result_map = {r.column_name: r for r in results}
+
+    # id_like column: No_Matches_Found, no LLM call
+    id_result = result_map["sample_id"]
+    assert id_result.matches[0].cde_key == "No_Matches_Found"
+    assert id_result.matches[0].confidence == 0.0
+
+    # Categorical column: real LLM match
+    sex_result = result_map["sex"]
+    assert sex_result.matches[0].cde_key != "No_Matches_Found"
+
+    # Only 1 OpenAI call (for "sex", not "sample_id")
     assert mock_openai_client.responses.create.call_count == 1

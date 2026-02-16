@@ -53,6 +53,50 @@ def test_handler_404_no_cdes(mock_load: MagicMock):
     assert resp["statusCode"] == 404
 
 
+@patch("cde_recommend.handler.match_columns_batch")
+@patch("cde_recommend.handler.get_client")
+@patch("cde_recommend.handler.load_cdes")
+def test_handler_excludes_high_cardinality_cdes(
+    mock_load: MagicMock,
+    mock_get_client: MagicMock,
+    mock_batch: MagicMock,
+):
+    # Given: a mix of low- and high-cardinality CDEs
+    low_pv_cde = CDE(cde_id=1, cde_key="gender", pv_values=("Male", "Female"))
+    high_pv_cde = CDE(
+        cde_id=2,
+        cde_key="treatment_agent",
+        pv_values=tuple(f"drug_{i}" for i in range(200)),
+    )
+    # high_pv_cde has NOT been filtered yet
+    assert len(high_pv_cde.pv_values) > 100
+
+    mock_load.return_value = ([low_pv_cde, high_pv_cde], "auto-v1", 1)
+    mock_get_client.return_value = MagicMock()
+
+    async def fake_batch(**kwargs: object) -> tuple[list[ColumnResult], UsageStats]:
+        match = CDEMatch(cde_id=1, cde_key="gender", rank=1, confidence=0.95)
+        return (
+            [ColumnResult(column_name="sex", matches=[match])],
+            UsageStats(input_tokens=0, output_tokens=0, total_tokens=0),
+        )
+
+    mock_batch.side_effect = fake_batch
+
+    event = {"body": json.dumps({
+        "target_schema": "ccdi", "target_version": 1, "data": {"sex": ["M"]},
+    })}
+
+    # When
+    resp = handler(event, None)
+
+    # Then: only the low-cardinality CDE is passed to match_columns_batch
+    assert resp["statusCode"] == 200
+    call_kwargs = mock_batch.call_args
+    passed_cdes = call_kwargs.kwargs.get("all_cdes") or call_kwargs[1].get("all_cdes")
+    assert passed_cdes == [low_pv_cde]
+
+
 @patch("cde_recommend.handler.asyncio")
 @patch("cde_recommend.handler.get_client")
 @patch("cde_recommend.handler.load_cdes")

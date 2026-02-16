@@ -58,7 +58,7 @@ async def match_columns_batch(
 
     async def _process_column(col: ColumnInput) -> tuple[str, ColumnResult, UsageStats]:
         col_profile = profile_column(col.column_name, col.column_values)
-        if col_profile.dtype == "numeric":
+        if col_profile.dtype in ("numeric", "id_like"):
             return col.column_name, _no_match_result(col.column_name), UsageStats()
         result, usage = await match_column(
             profile=col_profile,

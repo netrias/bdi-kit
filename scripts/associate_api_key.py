@@ -26,8 +26,12 @@ STANDARD_USAGE_PLANS: list[tuple[str, str]] = [
     ("h8daoc", "cde-recommendation-staging (async)"),
     ("ont5g8", "apiserver"),
     ("zdtqrs", "apivm"),
-    ("8fr3fm", "cde-recommend direct Lambda (sarajevo)"),
-    ("4pcdp7", "harmonization REST API (manila)"),
+    # staging
+    ("8fr3fm", "cde-recommend staging (sarajevo)"),
+    ("4pcdp7", "harmonization staging REST API (manila)"),
+    # prod
+    ("2bywoq", "cde-recommend prod (sarajevo)"),
+    ("0mmoxo", "harmonization prod REST API (manila)"),
 ]
 
 
