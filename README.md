@@ -12,21 +12,42 @@ make all                      # lint + typecheck + test
 ## Deploy
 
 ```bash
+make plan-staging             # terraform plan only (no apply)
 make deploy-staging           # build + terraform apply to staging
-make deploy-plan              # terraform plan only (no apply)
-
-# Production
-PYTHONPATH=. uv run python -m deploy.deploy --env prod
+make plan-prod                # terraform plan only (no apply)
+make deploy-prod              # build + terraform apply to prod
 ```
 
-Requires AWS credentials with access to:
+### AWS prerequisites
 
-- **SSM Parameter Store** (read) — secrets loaded automatically during deploy:
-  - `/harmonization-pipeline/{env}/openai-api-key` → `TF_VAR_openai_api_key`
-  - `/harmonization-pipeline/{env}/zero-shot-db-user` → `TF_VAR_db_user`
-  - `/harmonization-pipeline/{env}/zero-shot-db-password` → `TF_VAR_db_password`
-- **S3** — Terraform state backend (auto-bootstrapped)
-- **API Gateway, Lambda, DynamoDB** — infrastructure managed by Terraform
+No `.env` file is needed. The deploy script pulls secrets from SSM Parameter Store at deploy time and injects them as `TF_VAR_*` environment variables for Terraform.
+
+You need a configured AWS CLI identity (IAM user, SSO session, or assumed role) in `us-east-2`:
+
+```bash
+aws configure                     # or: aws configure sso
+aws sts get-caller-identity       # verify you're authenticated
+```
+
+The identity must have the following permissions:
+
+| Service | Actions | Resource scope |
+|---------|---------|----------------|
+| **SSM** | `ssm:GetParameter` | `/harmonization-pipeline/{env}/*` |
+| **S3** | `s3:*` (bucket ops) | `cde-recommend-tfstate-{env}` |
+| **DynamoDB** | `dynamodb:CreateTable`, `dynamodb:DescribeTable`, `dynamodb:PutItem`, `dynamodb:GetItem`, `dynamodb:DeleteItem` | `cde-recommend-tflock-{env}` |
+| **Lambda** | `lambda:*` | `cde-recommend-{env}` |
+| **API Gateway** | `apigateway:*` | CDE recommend REST API |
+| **IAM** | `iam:CreateRole`, `iam:AttachRolePolicy`, `iam:PutRolePolicy`, `iam:PassRole` | `cde-recommend-lambda-{env}` |
+| **CloudWatch Logs** | `logs:*` | Lambda log groups |
+
+SSM parameters loaded during deploy:
+
+- `/harmonization-pipeline/{env}/openai-api-key` → `TF_VAR_openai_api_key`
+- `/harmonization-pipeline/{env}/zero-shot-db-user` → `TF_VAR_db_user`
+- `/harmonization-pipeline/{env}/zero-shot-db-password` → `TF_VAR_db_password`
+
+If any SSM parameter is missing, the deploy fails fast with a clear error listing which parameters could not be loaded.
 
 ## API
 
@@ -92,13 +113,17 @@ The developer message (CDE catalog) is built once per batch and reused across al
 
 ## Development
 
-| Command            | Description                     |
-|--------------------|---------------------------------|
-| `make lint`        | Ruff linter                     |
-| `make typecheck`   | basedpyright (standard mode)    |
-| `make test`        | pytest                          |
-| `make all`         | All three                       |
-| `make clean`       | Remove build artifacts          |
+| Command              | Description                     |
+|----------------------|---------------------------------|
+| `make lint`          | Ruff linter                     |
+| `make typecheck`     | basedpyright (standard mode)    |
+| `make test`          | pytest                          |
+| `make all`           | All three                       |
+| `make plan-staging`  | Terraform plan (staging)        |
+| `make deploy-staging`| Terraform apply (staging)       |
+| `make plan-prod`     | Terraform plan (prod)           |
+| `make deploy-prod`   | Terraform apply (prod)          |
+| `make clean`         | Remove build artifacts          |
 
 ## Project layout
 
