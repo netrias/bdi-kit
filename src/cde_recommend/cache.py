@@ -101,7 +101,7 @@ def _get_table_name() -> str:
     return os.getenv("CACHE_TABLE_NAME", _TABLE_NAME)
 
 
-def _get_resource():  # type: ignore[no-untyped-def]
+def _get_resource() -> object:  # type: ignore[no-untyped-def]
     """boto3 service resources are dynamically typed."""
     return boto3.resource("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-2"))
 

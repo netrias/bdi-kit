@@ -1,4 +1,7 @@
-"""SSM credential loading. Fail fast if any secret is missing."""
+"""SSM credential loading. Fail fast if any secret is missing.
+
+Changes when secret sources or environment variable mappings change.
+"""
 
 from __future__ import annotations
 

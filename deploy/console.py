@@ -1,4 +1,4 @@
-"""Colored console logging for deploy output."""
+"""Colored console logging for deploy output. Changes when log styling or format changes."""
 
 from __future__ import annotations
 

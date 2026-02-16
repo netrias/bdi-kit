@@ -40,6 +40,9 @@ async def test_batch_processes_multiple_columns(
     sample_cdes: list[CDE],
     mock_openai_client: AsyncMock,
 ):
+    # Given: two columns with no cached results
+
+    # When: batch processes both
     results, usage = await match_columns_batch(
         columns=columns,
         all_cdes=sample_cdes,
@@ -48,6 +51,7 @@ async def test_batch_processes_multiple_columns(
         version_number=1,
     )
 
+    # Then: both columns have results with positive token usage
     assert len(results) == 2
     assert results[0].column_name == "sex"
     assert results[1].column_name == "race"
@@ -63,7 +67,7 @@ async def test_batch_handles_partial_failure_gracefully(
     mock_cache_get: MagicMock,
     sample_cdes: list[CDE],
 ):
-    # First call succeeds, second raises
+    # Given: two columns where the second OpenAI call raises
     client = AsyncMock()
     success_resp = MagicMock()
     success_resp.output_text = json.dumps({
@@ -73,7 +77,7 @@ async def test_batch_handles_partial_failure_gracefully(
 
     call_count = 0
 
-    async def side_effect(**kwargs):
+    async def side_effect(**kwargs: object) -> MagicMock:
         nonlocal call_count
         call_count += 1
         if call_count == 2:
@@ -81,12 +85,12 @@ async def test_batch_handles_partial_failure_gracefully(
         return success_resp
 
     client.responses.create = AsyncMock(side_effect=side_effect)
-
     columns = [
         ColumnInput(column_name="sex", column_values=["Male", "Female"] * 10),
         ColumnInput(column_name="bad_col", column_values=["x", "y"]),
     ]
 
+    # When: batch processes both
     results, usage = await match_columns_batch(
         columns=columns,
         all_cdes=sample_cdes,
@@ -95,7 +99,7 @@ async def test_batch_handles_partial_failure_gracefully(
         version_number=1,
     )
 
-    # At least the successful column should be present
+    # Then: the successful column is still present
     col_names = [r.column_name for r in results]
     assert "sex" in col_names
 
@@ -107,21 +111,20 @@ async def test_batch_skips_openai_for_cached_columns(
     sample_cdes: list[CDE],
     mock_openai_client: AsyncMock,
 ):
+    # Given: "sex" column has a cached result, "race" does not
     cached_result = ColumnResult(
         column_name="sex",
         matches=[CDEMatch(cde_id=1, cde_key="gender", rank=1, confidence=0.95)],
     )
-
     columns = [
         ColumnInput(column_name="sex", column_values=["Male", "Female"] * 10),
         ColumnInput(column_name="race", column_values=["White", "Black", "Asian"] * 10),
     ]
-
-    # Patch get_cached_results to return the cached result for "sex"
     from cde_recommend.cache import compute_cache_key
 
     sex_key = compute_cache_key("ccdi", 1, "sex", ["Male", "Female"] * 10)
 
+    # When: batch processes both
     with patch(
         "cde_recommend.batch.get_cached_results",
         return_value={sex_key: cached_result},
@@ -134,12 +137,10 @@ async def test_batch_skips_openai_for_cached_columns(
             version_number=1,
         )
 
+    # Then: sex uses cached result and only race triggers an OpenAI call
     assert len(results) == 2
-    # sex should use cached result
     sex_result = next(r for r in results if r.column_name == "sex")
     assert sex_result.matches[0].cde_key == "gender"
-
-    # Only 1 OpenAI call (for "race", not "sex")
     assert mock_openai_client.responses.create.call_count == 1
 
 
@@ -152,10 +153,12 @@ async def test_batch_stores_new_results_in_cache(
     sample_cdes: list[CDE],
     mock_openai_client: AsyncMock,
 ):
+    # Given: one uncached column
     columns = [
         ColumnInput(column_name="sex", column_values=["Male", "Female"] * 10),
     ]
 
+    # When: batch processes it
     results, _ = await match_columns_batch(
         columns=columns,
         all_cdes=sample_cdes,
@@ -164,6 +167,7 @@ async def test_batch_stores_new_results_in_cache(
         version_number=1,
     )
 
+    # Then: store_results is called with the new result
     mock_store.assert_called_once()
     stored_entries = mock_store.call_args[0][0]
     assert len(stored_entries) == 1

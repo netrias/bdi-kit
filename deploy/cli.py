@@ -1,4 +1,4 @@
-"""CLI argument parsing for deploy script."""
+"""CLI argument parsing for deploy script. Changes when required deploy arguments change."""
 
 from __future__ import annotations
 

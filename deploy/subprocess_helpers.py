@@ -1,4 +1,7 @@
-"""Subprocess execution with consistent error handling."""
+"""Subprocess execution with consistent error handling.
+
+Changes when command failure modes change.
+"""
 
 from __future__ import annotations
 

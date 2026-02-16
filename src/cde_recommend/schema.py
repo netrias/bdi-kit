@@ -1,13 +1,12 @@
 """JSON schema enforcement for OpenAI structured output. Changes when the output format changes."""
 
+from typing import Any
+
 from cde_recommend.types import ClosestMatchesIndex
 
 
-def build_strict_schema(schema: dict) -> dict:
-    """Recursively add required/additionalProperties for OpenAI strict mode compliance."""
-    if not isinstance(schema, dict):
-        return schema
-
+def build_strict_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """OpenAI strict mode requires additionalProperties=false on every object in the schema."""
     if schema.get("type") == "object":
         schema.setdefault("additionalProperties", False)
         props = schema.get("properties", {})

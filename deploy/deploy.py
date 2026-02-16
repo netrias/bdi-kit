@@ -22,7 +22,7 @@ def main() -> None:
 
     log_info(f"Deploying {_PROJECT_NAME} to {args.environment}")
 
-    # 1. Load secrets from SSM
+    # Secrets must load first — ensure_secrets sets TF_VAR_* env vars that terraform reads
     log_info("Step 1/5: Loading secrets from SSM...")
     ensure_secrets(args.environment, _AWS_REGION)
 

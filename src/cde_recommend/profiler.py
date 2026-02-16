@@ -6,7 +6,7 @@ Changes when profiling heuristics change.
 import random
 import re
 from collections import Counter
-from typing import Any
+from collections.abc import Sequence
 
 from cde_recommend.types import ColumnProfile
 
@@ -21,7 +21,7 @@ _CATEGORICAL_AVG_LEN_THRESHOLD = 25
 
 def profile_column(
     name: str,
-    raw_values: list[Any],
+    raw_values: Sequence[object],
     *,
     seed: int = 0,
     max_samples: int = 12,
@@ -59,7 +59,7 @@ def serialize_column(profile: ColumnProfile) -> str:
 # --- Private helpers ---
 
 
-def _clean_value(v: Any, max_len: int = 120) -> str | None:
+def _clean_value(v: object, max_len: int = 120) -> str | None:
     if v is None:
         return None
     s = str(v).strip()
@@ -131,7 +131,8 @@ def _sample_values(cleaned: list[str], dtype: str, max_samples: int, seed: int) 
 
 
 def _sample_categorical(cleaned: list[str], max_samples: int, rng: random.Random) -> list[str]:
-    """Top-frequency values plus random tail values for coverage."""
+    # Top-frequency ensures the LLM sees dominant values; tail adds rare label coverage.
+
     counts = Counter(cleaned[:_MAX_STATS_SAMPLE])
     top = [v for v, _ in counts.most_common(5)]
     tail = list(set(cleaned[:_MAX_STATS_SAMPLE]) - set(top))

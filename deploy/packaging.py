@@ -10,6 +10,9 @@ from pathlib import Path
 from deploy.console import log_info
 from deploy.subprocess_helpers import run_command
 
+_PYTHON_VERSION = "3.12"
+_TARGET_PLATFORM = "x86_64-unknown-linux-gnu"
+
 _RUNTIME_DEPS = [
     "openai>=1.60",
     "psycopg-binary>=3.2",
@@ -34,8 +37,8 @@ def build_lambda_zip(repo_root: Path) -> Path:
             [
                 "uv", "pip", "install",
                 "--target", str(tmp_path),
-                "--python-platform", "x86_64-unknown-linux-gnu",
-                "--python-version", "3.12",
+                "--python-platform", _TARGET_PLATFORM,
+                "--python-version", _PYTHON_VERSION,
                 "--only-binary", ":all:",
                 *_RUNTIME_DEPS,
             ],
