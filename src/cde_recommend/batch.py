@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 
 from openai import AsyncOpenAI
 
@@ -48,13 +49,28 @@ async def match_columns_batch(
         if col_name:
             cached_by_name[col_name] = result
 
-    # Step 2: Build developer message ONCE for prompt caching
+    # Step 2: Exact-match short-circuit — skip LLM for columns whose name matches a CDE key
+    cde_by_normalized_key = {_normalize_key(cde.cde_key): cde for cde in all_cdes}
+    exact_by_name: dict[str, ColumnResult] = {}
+    for col in columns:
+        if col.column_name in cached_by_name:
+            continue
+        normalized = _normalize_key(col.column_name)
+        matched_cde = cde_by_normalized_key.get(normalized)
+        if matched_cde is not None:
+            exact_by_name[col.column_name] = _exact_match_result(col.column_name, matched_cde)
+
+    # Step 3: Build developer message ONCE for prompt caching
     cand_serialized = serialize_cde_candidates(all_cdes, max_pv_samples=max_pv_samples)
     developer_message = build_developer_message(cand_serialized, top_k)
 
-    # Step 3: Fan out OpenAI calls for cache misses only
+    # Step 4: Fan out OpenAI calls for remaining cache misses
     semaphore = asyncio.Semaphore(concurrency)
-    miss_columns = [col for col in columns if col.column_name not in cached_by_name]
+    miss_columns = [
+        col
+        for col in columns
+        if col.column_name not in cached_by_name and col.column_name not in exact_by_name
+    ]
 
     async def _process_column(col: ColumnInput) -> tuple[str, ColumnResult, UsageStats]:
         col_profile = profile_column(col.column_name, col.column_values)
@@ -78,9 +94,9 @@ async def match_columns_batch(
     tasks = [asyncio.create_task(_process_column(col)) for col in miss_columns]
     task_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    # Step 4: Collect results and store new ones in cache
+    # Step 5: Collect results and store new ones in cache
     new_entries: list[tuple[str, ColumnResult]] = []
-    results_by_name: dict[str, ColumnResult] = dict(cached_by_name)
+    results_by_name: dict[str, ColumnResult] = {**cached_by_name, **exact_by_name}
 
     for i, result in enumerate(task_results):
         col = miss_columns[i]
@@ -104,6 +120,21 @@ async def match_columns_batch(
             final.append(results_by_name[col.column_name])
 
     return final, total_usage
+
+
+def _normalize_key(name: str) -> str:
+    """CDE key equivalence rule: 'Age at Diagnosis' ↔ 'age_at_diagnosis'."""
+    s = name.lower().strip()
+    s = re.sub(r"[\s\-]+", "_", s)
+    s = re.sub(r"_+", "_", s)
+    return s.strip("_")
+
+
+def _exact_match_result(column_name: str, cde: CDE) -> ColumnResult:
+    return ColumnResult(
+        column_name=column_name,
+        matches=[CDEMatch(cde_id=cde.cde_id, cde_key=cde.cde_key, rank=1, confidence=1.0)],
+    )
 
 
 def _no_match_result(column_name: str) -> ColumnResult:
