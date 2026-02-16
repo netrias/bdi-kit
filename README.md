@@ -19,13 +19,29 @@ make deploy-plan              # terraform plan only (no apply)
 PYTHONPATH=. uv run python -m deploy.deploy --env prod
 ```
 
-Requires AWS credentials and SSM parameters under `/harmonization-pipeline/{env}/`.
+Requires AWS credentials with access to:
+
+- **SSM Parameter Store** (read) — secrets loaded automatically during deploy:
+  - `/harmonization-pipeline/{env}/openai-api-key` → `TF_VAR_openai_api_key`
+  - `/harmonization-pipeline/{env}/zero-shot-db-user` → `TF_VAR_db_user`
+  - `/harmonization-pipeline/{env}/zero-shot-db-password` → `TF_VAR_db_password`
+- **S3** — Terraform state backend (auto-bootstrapped)
+- **API Gateway, Lambda, DynamoDB** — infrastructure managed by Terraform
 
 ## API
 
 **POST** `/{stage}/recommend`
 
 Requires `x-api-key` header (REST API v1 usage plan).
+
+### Request
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `target_schema` | string | yes | Data model key (e.g. `"ccdi"`) |
+| `target_version` | int, string, or `"latest"` | no | Version number, label, or `"latest"` (default) |
+| `data` | object | yes | Map of column names to sample value arrays |
+| `top_k` | int | no | Max matches per column (default: 5) |
 
 ```json
 {
@@ -38,7 +54,9 @@ Requires `x-api-key` header (REST API v1 usage plan).
 }
 ```
 
-Response:
+### Response
+
+Each column returns up to `top_k` matches ranked by confidence. Columns that are numeric or id-like return a single `No_Matches_Found` entry.
 
 ```json
 {
@@ -52,6 +70,25 @@ Response:
   }
 }
 ```
+
+| Field | Description |
+|-------|-------------|
+| `target` | Matched CDE key name |
+| `similarity` | Confidence score (0.0–1.0) |
+| `target_cde_id` | CDE database ID |
+
+## Matching strategy
+
+Each source column goes through profiling and filtering before reaching the LLM:
+
+1. **Profile** — classify column dtype as `numeric`, `id_like`, `categorical`, `free_text`, or `mixed`
+2. **Filter** — `numeric` and `id_like` columns return `No_Matches_Found` immediately (no LLM call). CDEs with >100 permissible values are excluded from matching candidates.
+3. **Match** — route by CDE count:
+   - **Single-call** (<=500 CDEs): one OpenAI call per column with all CDEs in the developer message
+   - **Chunked** (>500 CDEs): split CDEs into 50-CDE chunks, shortlist top-3 per chunk, then final ranking over the aggregated shortlist
+4. **Cache** — results are cached in DynamoDB (30-day TTL) keyed by data model + version + column name + sorted values. Cache hits skip profiling and LLM calls entirely.
+
+The developer message (CDE catalog) is built once per batch and reused across all columns for OpenAI prompt caching.
 
 ## Development
 
@@ -69,7 +106,6 @@ Response:
 src/cde_recommend/   Lambda source (handler, matching, profiling, caching)
 deploy/              Deploy orchestrator (packaging, secrets, terraform)
 infra/               Terraform/OpenTofu configuration
-scripts/             Operational scripts (API key management)
 tests/               Unit and integration tests
 adr/                 Architecture Decision Records
 ```
