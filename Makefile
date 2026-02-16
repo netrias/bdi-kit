@@ -1,10 +1,10 @@
 .PHONY: lint typecheck test all deploy-plan deploy-staging clean
 
 lint:
-	uv run ruff check src tests deploy
+	uv run ruff check src tests deploy scripts
 
 typecheck:
-	uv run basedpyright src tests deploy
+	uv run basedpyright src tests deploy scripts
 
 test:
 	uv run pytest tests -v
