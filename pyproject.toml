@@ -1,0 +1,44 @@
+[project]
+name = "cde-recommend"
+version = "0.1.0"
+description = "Lambda service for matching source columns to CDEs via OpenAI structured output"
+requires-python = ">=3.12"
+dependencies = [
+    "openai>=1.60",
+    "psycopg[binary]>=3.2",
+    "pydantic>=2.10",
+    "boto3>=1.35",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.9",
+    "basedpyright>=1.22",
+    "hypothesis>=6.100",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cde_recommend"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests", "deploy", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.basedpyright]
+pythonVersion = "3.12"
+include = ["src", "tests", "deploy", "scripts"]
+typeCheckingMode = "standard"
